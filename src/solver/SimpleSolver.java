@@ -23,12 +23,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import kernel.SudokuCoreUtil;
 import sudoku.Candidate;
 import sudoku.SolutionStep;
 import sudoku.SolutionType;
 import sudoku.Sudoku2;
 import sudoku.SudokuSinglesQueue;
-import sudoku.SudokuUtil;
 
 /**
  *
@@ -301,7 +301,7 @@ public class SimpleSolver extends AbstractSolver {
 	 * @return
 	 */
 	private SolutionStep findNakedXle(int anz, boolean lockedOnly) {
-		SudokuUtil.clearStepList(steps);
+		SudokuCoreUtil.clearStepList(steps);
 
 		// check if cached steps can be used
 		if (cachedSteps.size() > 0 && cachedStepsNumber == finder.getStepNumber()) {
@@ -568,7 +568,7 @@ public class SimpleSolver extends AbstractSolver {
 	 * @return
 	 */
 	private SolutionStep findHiddenXle(int anz) {
-		SudokuUtil.clearStepList(steps);
+		SudokuCoreUtil.clearStepList(steps);
 		SolutionStep step = findHiddenXleInEntity(2 * Sudoku2.UNITS, Sudoku2.BLOCKS, anz, true);
 		if (step != null) {
 			return step;
@@ -699,7 +699,7 @@ public class SimpleSolver extends AbstractSolver {
 	 * @return
 	 */
 	private SolutionStep findLockedCandidates(SolutionType type) {
-		SudokuUtil.clearStepList(steps);
+		SudokuCoreUtil.clearStepList(steps);
 		SolutionStep step = null;
 		if (type == SolutionType.LOCKED_CANDIDATES || type == SolutionType.LOCKED_CANDIDATES_1) {
 			step = findLockedCandidatesInEntityN(18, Sudoku2.BLOCKS, true);

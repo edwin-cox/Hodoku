@@ -26,19 +26,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import kernel.SolverProgressListener;
+import kernel.StepSearchProgressListener;
+import kernel.SudokuCoreUtil;
 import sudoku.DifficultyLevel;
 import sudoku.DifficultyType;
-import sudoku.FindAllStepsProgressDialog;
 import sudoku.GameMode;
-import sudoku.GuiState;
 import sudoku.Options;
 import sudoku.SolutionCategory;
 import sudoku.SolutionStep;
 import sudoku.SolutionType;
-import sudoku.SolverProgressDialog;
 import sudoku.StepConfig;
 import sudoku.Sudoku2;
-import sudoku.SudokuUtil;
 
 /**
  *
@@ -58,43 +57,6 @@ public class SudokuSolver {
 
 	/** Creates a new instance of SudokuSolver */
 	public SudokuSolver() {
-	}
-
-	/**
-	 * If the time to solve the sudoku exceeds a certain limit (2s), a progress
-	 * dialog is displayed. The dialog is created anyway, it starts the solver in a
-	 * seperate thread. If the thread does not complete in a given time,
-	 * setVisible(true) is called.
-	 * 
-	 * @param withGui
-	 * @return
-	 */
-	public boolean solve(boolean withGui) {
-		if (!withGui) {
-			return solve();
-		}
-		SolverProgressDialog dlg = new SolverProgressDialog(null, true, this);
-		Thread thread = dlg.getThread();
-		try {
-			thread.join(2000);
-		} catch (InterruptedException ex) {
-			Logger.getLogger(getClass().getName()).log(Level.INFO, "Solver thread was interrupted", ex);
-		}
-		if (thread.isAlive()) {
-			dlg.setVisible(true);
-		}
-		if (thread.isAlive()) {
-			try {
-				thread.join();
-			} catch (InterruptedException ex) {
-				Logger.getLogger(getClass().getName()).log(Level.INFO, "Solver thread was interrupted", ex);
-			}
-		}
-		if (dlg.isVisible()) {
-			dlg.setVisible(false);
-		}
-
-		return dlg.isSolved();
 	}
 
 	/**
@@ -120,7 +82,7 @@ public class SudokuSolver {
 		// sudoku = newSudoku;
 		setSudoku(newSudoku);
 		steps = tmpSteps;
-		SudokuUtil.clearStepListWithNullify(steps);
+		SudokuCoreUtil.clearStepListWithNullify(steps);
 		boolean solved = solve(Options.getInstance().getDifficultyLevel(DifficultyType.EXTREME.ordinal()), null, false,
 				null, true);
 		steps = oldList;
@@ -143,7 +105,7 @@ public class SudokuSolver {
 		// sudoku = newSudoku;
 		setSudoku(newSudoku);
 		steps = tmpSteps;
-		SudokuUtil.clearStepListWithNullify(steps);
+		SudokuCoreUtil.clearStepListWithNullify(steps);
 //        boolean solved = solve(Options.getInstance().getDifficultyLevels()[DifficultyType.EXTREME.ordinal()], null, false, null, true);
 		boolean solved = solve(Options.getInstance().getDifficultyLevel(DifficultyType.EXTREME.ordinal()), null, false,
 				null, false, stepConfigs, GameMode.PLAYING);
@@ -163,8 +125,8 @@ public class SudokuSolver {
 	 * @return
 	 */
 	public boolean solve(DifficultyLevel maxLevel, Sudoku2 tmpSudoku, boolean rejectTooLowScore,
-			final SolverProgressDialog dlg) {
-		return solve(maxLevel, tmpSudoku, rejectTooLowScore, dlg, false);
+			final SolverProgressListener listener) {
+		return solve(maxLevel, tmpSudoku, rejectTooLowScore, listener, false);
 	}
 
 	/**
@@ -173,21 +135,20 @@ public class SudokuSolver {
 	 * @param maxLevel
 	 * @param tmpSudoku
 	 * @param rejectTooLowScore
-	 * @param dlg
+	 * @param listener
 	 * @param singlesOnly
 	 * @return
 	 */
 	public boolean solve(DifficultyLevel maxLevel, Sudoku2 tmpSudoku, boolean rejectTooLowScore,
-			final SolverProgressDialog dlg, boolean singlesOnly) {
-		return solve(maxLevel, tmpSudoku, rejectTooLowScore, dlg, singlesOnly, Options.getInstance().solverSteps,
+			final SolverProgressListener listener, boolean singlesOnly) {
+		return solve(maxLevel, tmpSudoku, rejectTooLowScore, listener, singlesOnly, Options.getInstance().solverSteps,
 				GameMode.PLAYING);
 	}
 
 	/**
 	 * The real solver method. Can reject a possible solution if the
 	 * {@link DifficultyLevel} doesnt match or if the score of the sudoku is too
-	 * low. If a progress dialog is passed in, the counters in the dialog are
-	 * updated.<br>
+	 * low. If a progress listener is passed in, progress updates are reported.<br>
 	 * If <code>stepConfig</code> is {@link Options#solverStepsProgress}, the method
 	 * can be used to measure progress or find backdoors.<br>
 	 * If the <code>gameMode</code> is any other than <code>PLAYING</code>, any
@@ -197,14 +158,14 @@ public class SudokuSolver {
 	 * @param maxLevel
 	 * @param tmpSudoku
 	 * @param rejectTooLowScore
-	 * @param dlg
+	 * @param listener
 	 * @param singlesOnly
 	 * @param stepConfigs
 	 * @param gameMode
 	 * @return
 	 */
 	public boolean solve(DifficultyLevel maxLevel, Sudoku2 tmpSudoku, boolean rejectTooLowScore,
-			final SolverProgressDialog dlg, boolean singlesOnly, StepConfig[] stepConfigs, GameMode gameMode) {
+			final SolverProgressListener listener, boolean singlesOnly, StepConfig[] stepConfigs, GameMode gameMode) {
 		if (tmpSudoku != null) {
 			setSudoku(tmpSudoku);
 		}
@@ -218,15 +179,15 @@ public class SudokuSolver {
 			return false;
 		}
 		int anzCand = sudoku.getUnsolvedCandidatesAnz();
-		if (dlg != null) {
-			dlg.initializeProgressState(anzCand);
+		if (listener != null) {
+			listener.initializeProgressState(anzCand);
 		}
 
 		this.maxLevel = maxLevel;
 		score = 0;
 		level = Options.getInstance().getDifficultyLevel(DifficultyType.EASY.ordinal());
 
-		// SudokuUtil.clearStepList(steps);
+		// SudokuCoreUtil.clearStepList(steps);
 		SolutionStep step = null;
 
 		for (int i = 0; i < anzSteps.length; i++) {
@@ -237,9 +198,9 @@ public class SudokuSolver {
 //        System.out.println("Start solving (" + gameMode + ")!");
 
 		do {
-			// show progress if progress dialog is enabled
-			if (dlg != null) {
-				dlg.setProgressState(sudoku.getUnsolvedCellsAnz(), sudoku.getUnsolvedCandidatesAnz());
+			// show progress if progress listener is enabled
+			if (listener != null) {
+				listener.setProgressState(sudoku.getUnsolvedCellsAnz(), sudoku.getUnsolvedCandidatesAnz());
 			}
 
 			// jetzt eine Methode nach der anderen, aber immer nur einmal; wenn etwas
@@ -299,9 +260,10 @@ public class SudokuSolver {
 	 * @param stepsTocheck
 	 * @param dlg
 	 */
-	public void getProgressScore(Sudoku2 tmpSudoku, List<SolutionStep> stepsTocheck, FindAllStepsProgressDialog dlg) {
-		if (dlg != null) {
-			dlg.resetFishProgressBar(stepsTocheck.size());
+	public void getProgressScore(Sudoku2 tmpSudoku, List<SolutionStep> stepsTocheck,
+			StepSearchProgressListener listener) {
+		if (listener != null) {
+			listener.resetSubProgress(stepsTocheck.size());
 		}
 		resetProgressStepCounters();
 		int delta = stepsTocheck.size() / 10;
@@ -317,8 +279,8 @@ public class SudokuSolver {
 			SolutionStep step = stepsTocheck.get(i);
 			workingSudoku.set(tmpSudoku);
 			getProgressScore(workingSudoku, step);
-			if ((i % delta) == 0 && dlg != null) {
-				dlg.updateFishProgressBar(i);
+			if ((i % delta) == 0 && listener != null) {
+				listener.updateSubProgress(i);
 			}
 		}
 		Options.getInstance().setCheckTemplates(oldCheckTemplates);
@@ -536,7 +498,7 @@ public class SudokuSolver {
 	}
 
 	public void setSudoku(Sudoku2 sudoku) {
-		SudokuUtil.clearStepList(steps);
+		SudokuCoreUtil.clearStepList(steps);
 		for (int i = 0; i < anzSteps.length; i++) {
 			anzSteps[i] = 0;
 		}
@@ -613,50 +575,6 @@ public class SudokuSolver {
 
 	public void setAnzSteps(int[] anzSteps) {
 		this.anzSteps = anzSteps;
-	}
-
-	/**
-	 * Loads all relevant objects into <code>state</code>. If <code>copy</code> is
-	 * true, all objects are copied.<br>
-	 * Some objects have to be copied regardless of parameter <code>copy</code>.
-	 * 
-	 * @param state
-	 * @param copy
-	 */
-	@SuppressWarnings("unchecked")
-	public void getState(GuiState state, boolean copy) {
-		if (copy) {
-			state.setAnzSteps(anzSteps.clone());
-			state.setSteps((List<SolutionStep>) ((ArrayList<SolutionStep>) steps).clone());
-		} else {
-			state.setAnzSteps(anzSteps);
-			state.setSteps(steps);
-		}
-	}
-
-	/**
-	 * Loads back a saved state. Whether the objects had been copied before is
-	 * irrelevant here.<br>
-	 * <br>
-	 * 
-	 * Dont forget to set the score or loading saved sudokus will not display
-	 * correctly in the summary panel (relies on it!).
-	 * 
-	 * @param state
-	 */
-	public void setState(GuiState state) {
-		// corrections for newer versions: anzSteps might be too small if steps types
-		// have been added
-		// contents of state could come from a file created with an older version of
-		// HoDoKu
-		if (state.getAnzSteps().length < anzSteps.length) {
-			int[] tmpArray = new int[anzSteps.length];
-			System.arraycopy(state.getAnzSteps(), 0, tmpArray, 0, state.getAnzSteps().length);
-			state.setAnzSteps(tmpArray);
-		}
-		anzSteps = state.getAnzSteps();
-		steps = state.getSteps();
-		score = state.getSudoku().getScore();
 	}
 
 	private void resetProgressStepCounters() {

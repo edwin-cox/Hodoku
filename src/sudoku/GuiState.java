@@ -26,6 +26,7 @@ import java.util.SortedMap;
 import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import kernel.GameStateSnapshot;
 import solver.SudokuSolver;
 
 /**
@@ -132,13 +133,20 @@ public class GuiState {
 	}
 
 	/**
-	 * Gets all necessary GUI state information. NULL objectes are ignored.
+	 * Gets all necessary GUI state information. NULL objects are ignored.
 	 *
 	 * @param copy
 	 */
+	@SuppressWarnings("unchecked")
 	public void get(boolean copy) {
 		if (sudokuSolver != null) {
-			sudokuSolver.getState(this, copy);
+			if (copy) {
+				setAnzSteps(sudokuSolver.getAnzSteps().clone());
+				setSteps((List<SolutionStep>) ((ArrayList<SolutionStep>) sudokuSolver.getSteps()).clone());
+			} else {
+				setAnzSteps(sudokuSolver.getAnzSteps());
+				setSteps(sudokuSolver.getSteps());
+			}
 		}
 		if (solutionPanel != null) {
 			solutionPanel.getState(this, copy);
@@ -149,11 +157,21 @@ public class GuiState {
 	}
 
 	/**
-	 * Sets all necessary GUI state information. NULL objectes are ignored.<br>
+	 * Sets all necessary GUI state information. NULL objects are ignored.<br>
 	 */
 	public void set() {
 		if (sudokuSolver != null) {
-			sudokuSolver.setState(this);
+			int[] solverAnzSteps = sudokuSolver.getAnzSteps();
+			if (anzSteps != null && anzSteps.length < solverAnzSteps.length) {
+				int[] tmpArray = new int[solverAnzSteps.length];
+				System.arraycopy(anzSteps, 0, tmpArray, 0, anzSteps.length);
+				anzSteps = tmpArray;
+			}
+			sudokuSolver.setAnzSteps(anzSteps);
+			sudokuSolver.setSteps(steps);
+			if (sudoku != null) {
+				sudokuSolver.setScore(sudoku.getScore());
+			}
 		}
 		if (solutionPanel != null) {
 			solutionPanel.setState(this);
@@ -161,6 +179,39 @@ public class GuiState {
 		if (sudokuPanel != null) {
 			sudokuPanel.setState(this);
 		}
+	}
+
+	public GameStateSnapshot toSnapshot() {
+		GameStateSnapshot snapshot = new GameStateSnapshot();
+		snapshot.setSudoku(sudoku);
+		snapshot.setUndoStack(undoStack);
+		snapshot.setRedoStack(redoStack);
+		snapshot.setStep(step);
+		snapshot.setChainIndex(chainIndex);
+		snapshot.setSteps(steps);
+		snapshot.setAnzSteps(anzSteps);
+		snapshot.setTitles(titels);
+		snapshot.setTabSteps(tabSteps);
+		snapshot.setName(name);
+		snapshot.setTimestamp(timestamp);
+		return snapshot;
+	}
+
+	public void applySnapshot(GameStateSnapshot snapshot) {
+		if (snapshot == null) {
+			return;
+		}
+		this.sudoku = snapshot.getSudoku();
+		this.undoStack = snapshot.getUndoStack();
+		this.redoStack = snapshot.getRedoStack();
+		this.step = snapshot.getStep();
+		this.chainIndex = snapshot.getChainIndex();
+		this.steps = snapshot.getSteps();
+		this.anzSteps = snapshot.getAnzSteps();
+		this.titels = snapshot.getTitles();
+		this.tabSteps = snapshot.getTabSteps();
+		this.name = snapshot.getName();
+		this.timestamp = snapshot.getTimestamp();
 	}
 
 	/**

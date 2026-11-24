@@ -19,14 +19,13 @@
 
 package generator;
 
-import java.awt.EventQueue;
 import java.util.List;
+import kernel.GenerationProgressListener;
 import solver.SudokuSolver;
 import solver.SudokuSolverFactory;
 import sudoku.ClipboardMode;
 import sudoku.DifficultyLevel;
 import sudoku.GameMode;
-import sudoku.GenerateSudokuProgressDialog;
 import sudoku.Options;
 import sudoku.SolutionStep;
 import sudoku.Sudoku2;
@@ -56,8 +55,8 @@ public class BackgroundGenerator {
 	 * {@link GenerateSudokuProgressDialog}.
 	 */
 	private int anz = 0;
-	/** Progress dialog when called from GUI. */
-	private GenerateSudokuProgressDialog progressDialog = null;
+	/** Progress listener when called asynchronously (e.g., from GUI). */
+	private GenerationProgressListener progressListener = null;
 
 	/**
 	 * Generates a new instance.
@@ -67,8 +66,8 @@ public class BackgroundGenerator {
 	}
 
 	/**
-	 * Creates a sudoku without responses to the GUI. Delegates to
-	 * {@link #generate(sudoku.DifficultyLevel, sudoku.GameMode, sudoku.GenerateSudokuProgressDialog) }.
+	 * Creates a sudoku without progress callbacks. Delegates to
+	 * {@link #generate(sudoku.DifficultyLevel, sudoku.GameMode, kernel.GenerationProgressListener)}.
 	 * 
 	 * @param level
 	 * @param mode
@@ -83,26 +82,26 @@ public class BackgroundGenerator {
 	}
 
 	/**
-	 * Generates a new sudoku: If <code>dlg</code> is <code>null</code>, the
-	 * progress is reported and the dialog is closed, when puzzle has been found.
-	 * The current thread is checked for interruptions.<br>
-	 * If <code>dlg</code> is not <code>null</code>, the creation process goes on
+	 * Generates a new sudoku: If <code>listener</code> is not <code>null</code>,
+	 * progress is reported periodically and the current thread is checked for
+	 * interruptions.<br>
+	 * If <code>listener</code> is <code>null</code>, the creation process goes on
 	 * until a puzzle has been found or until {@link #MAX_TRIES} tries have been
 	 * run.
 	 * 
 	 * @param level
 	 * @param mode
-	 * @param dlg
+	 * @param listener
 	 * @return
 	 */
-	public Sudoku2 generate(DifficultyLevel level, GameMode mode, GenerateSudokuProgressDialog dlg) {
+	public Sudoku2 generate(DifficultyLevel level, GameMode mode, GenerationProgressListener listener) {
 		long actMillis = System.currentTimeMillis();
-		progressDialog = dlg;
+		progressListener = listener;
 		Sudoku2 sudoku = null;
 		SudokuGenerator creator = null;
 		SudokuSolver solver = null;
 		setAnz(0);
-		if (dlg == null) {
+		if (listener == null) {
 			// get any instance
 			solver = SudokuSolverFactory.getInstance();
 			creator = SudokuGeneratorFactory.getInstance();
@@ -111,7 +110,7 @@ public class BackgroundGenerator {
 			solver = SudokuSolverFactory.getDefaultSolverInstance();
 			creator = SudokuGeneratorFactory.getDefaultGeneratorInstance();
 		}
-		while (dlg == null || !Thread.currentThread().isInterrupted()) {
+		while (listener == null || !Thread.currentThread().isInterrupted()) {
 			sudoku = creator.generateSudoku(true);
 			if (sudoku == null) {
 				// impossible to create sudoku due to an invalid pattern
@@ -137,17 +136,10 @@ public class BackgroundGenerator {
 				break;
 			}
 			setAnz(getAnz() + 1);
-			if (dlg != null) {
+			if (listener != null) {
 				if ((System.currentTimeMillis() - actMillis) > 500) {
 					actMillis = System.currentTimeMillis();
-					EventQueue.invokeLater(new Runnable() {
-
-						@Override
-						public void run() {
-							progressDialog.updateProgressLabel();
-							// progressLabel.setText(Integer.toString(getAnz()));
-						}
-					});
+					progressListener.onGenerationAttempt(getAnz());
 				}
 			} else {
 				if (getAnz() > MAX_TRIES) {
@@ -157,7 +149,7 @@ public class BackgroundGenerator {
 				}
 			}
 		}
-		if (dlg == null) {
+		if (listener == null) {
 			// give everything back
 			SudokuGeneratorFactory.giveBack(creator);
 			SudokuSolverFactory.giveBack(solver);

@@ -19,8 +19,6 @@
 package sudoku;
 
 import java.awt.EventQueue;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.ResourceBundle;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -28,7 +26,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.DefaultListModel;
 import javax.swing.JOptionPane;
-import solver.SudokuSolver;
+import kernel.BackdoorSearchListener;
+import kernel.BackdoorSearcher;
 
 /**
  *
@@ -37,20 +36,13 @@ import solver.SudokuSolver;
 @SuppressWarnings("serial")
 public class BackdoorSearchDialog extends javax.swing.JDialog implements Runnable {
 
-	private static final int MAX_FOUND = 100;
 	private static final long serialVersionUID = 1L;
 	private DefaultListModel<String> singlesListModel;
 	private DefaultListModel<String> progressListModel;
 	private SudokuPanel sudokuPanel;
-	private Sudoku2 sudoku;
-	private Sudoku2 orgSudoku;
-//    private Sudoku2 solvedSudoku;
-	private SudokuSolver solver;
-	private List<Candidate> candidates = new ArrayList<Candidate>();
 	private BlockingQueue<String> singlesQueue = new ArrayBlockingQueue<String>(20);
 	private BlockingQueue<String> progressQueue = new ArrayBlockingQueue<String>(20);
 	private Thread thread;
-	private volatile int anzFound;
 	private Runnable updateRunnable = new Runnable() {
 
 		@Override
@@ -440,104 +432,64 @@ public class BackdoorSearchDialog extends javax.swing.JDialog implements Runnabl
 	}
 
 	/**
-	 * The search is done in a background thread: A maximum of 12 searches is
-	 * conducted (singles/progress, cells/candidates, up to combinations of
-	 * three).<br>
+	 * The search is delegated to {@link BackdoorSearcher} in a background thread.
 	 */
 	@Override
 	public void run() {
-//        System.out.println("Thread started!");
-		orgSudoku = sudokuPanel.getSudoku().clone();
-		// solvedSudoku = sudokuPanel.getSolvedSudoku();
-		sudoku = orgSudoku.clone();
-		solver = sudokuPanel.getSolver();
-		// makes sure the GUI is correctly displayed
 		EventQueue.invokeLater(updateRunnable);
-		try {
-			// search for singles first
-			if (Options.getInstance().isBdsSearchForCells()) {
-				// we need the number of unsolved cells
-				int anz = orgSudoku.getUnsolvedCellsAnz();
-				// System.out.println("thread: search 1");
-				// singles backdoor: singles only
-				setAnzFound(0);
-				if (!checkSingles(1, anz, null)) {
-					int maxAnz = SudokuUtil.combinations(anz, 2);
-					// System.out.println("thread: search 2");
-					if (!checkSingles(2, maxAnz, null)) {
-						// System.out.println("thread: search 3");
-						maxAnz = SudokuUtil.combinations(anz, 3);
-						checkSingles(3, maxAnz, null);
-						// System.out.println("Thread: done");
-					}
-				}
-				// singles backdoor: progress measure
-				setAnzFound(0);
-				if (!checkSingles(1, anz, Options.getInstance().solverStepsProgress)) {
-					int maxAnz = SudokuUtil.combinations(anz, 2);
-					// System.out.println("thread: search 2");
-					if (!checkSingles(2, maxAnz, Options.getInstance().solverStepsProgress)) {
-						// System.out.println("thread: search 3");
-						maxAnz = SudokuUtil.combinations(anz, 3);
-						checkSingles(3, maxAnz, Options.getInstance().solverStepsProgress);
-						// System.out.println("Thread: done");
-					}
-				}
-			}
-			// now for candidates
-			if (Options.getInstance().isBdsSearchForCandidates()) {
-				// collect all candidates
-				int anz = 0;
-				// SudokuCell[] cells = orgSudoku.getCells();
-				candidates.clear();
-				for (int i = 0; i < Sudoku2.LENGTH; i++) {
-					if (sudoku.getValue(i) == 0) {
-						int[] cands = sudoku.getAllCandidates(i);
-						for (int j = 0; j < cands.length; j++) {
-							if (cands[j] != sudoku.getSolution(i)) {
-								candidates.add(new Candidate(i, cands[j]));
-								anz++;
-							}
+		BackdoorSearcher searcher = new BackdoorSearcher(
+				sudokuPanel.getSudoku(),
+				sudokuPanel.getSolver(),
+				Options.getInstance().isBdsSearchForCells(),
+				Options.getInstance().isBdsSearchForCandidates(),
+				Options.getInstance().getBdsSearchCandidatesAnz() + 1,
+				Options.getInstance().solverStepsProgress,
+				new BackdoorSearchListener() {
+					@Override
+					public void onProgress(SearchKind searchKind, MeasureKind measureKind, int depth, int current,
+							int max) {
+						ResourceBundle bundle = ResourceBundle.getBundle("intl/BackdoorSearchDialog");
+						String startStr = bundle.getString(
+								searchKind == SearchKind.CELLS ? "BackdoorSearchDialog.search_cells"
+										: "BackdoorSearchDialog.search_candidates")
+								+ " (";
+						startStr += bundle.getString(
+								measureKind == MeasureKind.SINGLES_ONLY ? "BackdoorSearchDialog.singles"
+										: "BackdoorSearchDialog.progress");
+						startStr += " - ";
+						String depthKey;
+						if (searchKind == SearchKind.CELLS) {
+							depthKey = depth == 2 ? "BackdoorSearchDialog.search_cells2"
+									: (depth == 3 ? "BackdoorSearchDialog.search_cells3"
+											: "BackdoorSearchDialog.search_cells1");
+						} else {
+							depthKey = depth == 2 ? "BackdoorSearchDialog.search_candidates2"
+									: (depth == 3 ? "BackdoorSearchDialog.search_candidates3"
+											: "BackdoorSearchDialog.search_candidates1");
 						}
+						String label = startStr + bundle.getString(depthKey) + ")";
+						triggerUpdateProgressbar(label, max, current);
 					}
-				}
-				// candidates backdoor: singles only
-				setAnzFound(0);
-				int maxDepth = Options.getInstance().getBdsSearchCandidatesAnz() + 1;
-				if (!checkCandidates(1, anz, candidates, null) && maxDepth > 1) {
-					int maxAnz = SudokuUtil.combinations(anz, 2);
-					// System.out.println("thread: search 2 (" + maxAnz + ")");
-					if (!checkCandidates(2, maxAnz, candidates, null) && maxDepth > 2) {
-						maxAnz = SudokuUtil.combinations(anz, 3);
-						// System.out.println("thread: search 3 (" + maxAnz + ")");
-						checkCandidates(3, maxAnz, candidates, null);
-						// System.out.println("Thread: done");
+
+					@Override
+					public void onBackdoorFound(MeasureKind measureKind, String description) {
+						if (measureKind == MeasureKind.SINGLES_ONLY) {
+							singlesQueue.offer(description);
+						} else {
+							progressQueue.offer(description);
+						}
+						EventQueue.invokeLater(updateRunnable);
 					}
-				}
-				// candidates backdoor: progress measure
-				setAnzFound(0);
-				if (!checkCandidates(1, anz, candidates, Options.getInstance().solverStepsProgress) && maxDepth > 1) {
-					int maxAnz = SudokuUtil.combinations(anz, 2);
-					// System.out.println("thread: search 2 (" + maxAnz + ")");
-					if (!checkCandidates(2, maxAnz, candidates, Options.getInstance().solverStepsProgress)
-							&& maxDepth > 2) {
-						maxAnz = SudokuUtil.combinations(anz, 3);
-						// System.out.println("thread: search 3 (" + maxAnz + ")");
-						checkCandidates(3, maxAnz, candidates, Options.getInstance().solverStepsProgress);
-						// System.out.println("Thread: done");
+
+					@Override
+					public void onSearchFinished() {
+						setFinished(true);
+						triggerUpdateProgressbar(ResourceBundle.getBundle("intl/BackdoorSearchDialog")
+								.getString("BackdoorSearchDialog.searchLabel.text"), 100, 100);
+						EventQueue.invokeLater(updateRunnable);
 					}
-				}
-			}
-		} catch (InterruptedException ex) {
-			// stop button pressed
-			return;
-		}
-		// normal end
-		setFinished(true);
-		triggerUpdateProgressbar(ResourceBundle.getBundle("intl/BackdoorSearchDialog")
-				.getString("BackdoorSearchDialog.searchLabel.text"), 100, 100);
-		EventQueue.invokeLater(updateRunnable);
-		// System.out.println("Thread finished!");
+				});
+		searcher.run();
 	}
 
 	/**
@@ -616,326 +568,36 @@ public class BackdoorSearchDialog extends javax.swing.JDialog implements Runnabl
 		EventQueue.invokeLater(progressBarRunnable);
 	}
 
-	/**
-	 * Checks the sudoku for backdoors using combinations of candidates.
-	 * <code>depth</code> can be 1, 2 or 3 (number of candidates in each try).
-	 * 
-	 * @param depth
-	 * @param max
-	 * @param candidates
-	 * @param stepConfigs
-	 * @return
-	 */
-	private boolean checkCandidates(int depth, int max, List<Candidate> candidates, StepConfig[] stepConfigs)
-			throws InterruptedException {
-		boolean found = false;
-		int end = candidates.size();
-		int counter = 0;
-		String startStr = ResourceBundle.getBundle("intl/BackdoorSearchDialog")
-				.getString("BackdoorSearchDialog.search_candidates") + " (";
-		if (stepConfigs == null) {
-			startStr += ResourceBundle.getBundle("intl/BackdoorSearchDialog").getString("BackdoorSearchDialog.singles");
-		} else {
-			startStr += ResourceBundle.getBundle("intl/BackdoorSearchDialog")
-					.getString("BackdoorSearchDialog.progress");
-		}
-		startStr += " - ";
-		String label = startStr + ResourceBundle.getBundle("intl/BackdoorSearchDialog")
-				.getString("BackdoorSearchDialog.search_candidates1");
-		if (depth == 2) {
-			label = startStr + ResourceBundle.getBundle("intl/BackdoorSearchDialog")
-					.getString("BackdoorSearchDialog.search_candidates2");
-		} else if (depth == 3) {
-			label = startStr + ResourceBundle.getBundle("intl/BackdoorSearchDialog")
-					.getString("BackdoorSearchDialog.search_candidates3");
-		}
-		label += ")";
-		for (int i = 0; i < end; i++) {
-			if (depth == 1) {
-				if (checkSingleOrCandidate(-1, -1, -1, candidates.get(i), null, null, stepConfigs)) {
-					found = true;
-					incAnzFound();
-					if (getAnzFound() > MAX_FOUND) {
-						return true;
-					}
-				}
-				triggerUpdateProgressbar(label, max, ++counter);
-			} else {
-				for (int j = i + 1; j < end; j++) {
-					if (depth == 2) {
-						if (checkSingleOrCandidate(-1, -1, -1, candidates.get(i), candidates.get(j), null,
-								stepConfigs)) {
-							found = true;
-							incAnzFound();
-							if (getAnzFound() > MAX_FOUND) {
-								return true;
-							}
-						}
-						triggerUpdateProgressbar(label, max, ++counter);
-					} else {
-						for (int k = j + 1; k < end; k++) {
-							if (checkSingleOrCandidate(-1, -1, -1, candidates.get(i), candidates.get(j),
-									candidates.get(k), stepConfigs)) {
-								found = true;
-								incAnzFound();
-								if (getAnzFound() > MAX_FOUND) {
-									return true;
-								}
-							}
-							triggerUpdateProgressbar(label, max, ++counter);
-						}
-					}
-				}
-			}
-		}
-		return found;
-	}
-
-	/**
-	 * Checks the sudoku for singles only backdoors. <code>depth</code> can be 1, 2
-	 * or 3 (number of cells in each try).<br>
-	 * 
-	 * @param depth
-	 * @param max
-	 * @param stepConfigs
-	 * @return
-	 */
-	private boolean checkSingles(int depth, int max, StepConfig[] stepConfigs) throws InterruptedException {
-		boolean found = false;
-		int end = orgSudoku.getCells().length;
-		int counter = 0;
-		String startStr = ResourceBundle.getBundle("intl/BackdoorSearchDialog")
-				.getString("BackdoorSearchDialog.search_cells") + " (";
-		if (stepConfigs == null) {
-			startStr += ResourceBundle.getBundle("intl/BackdoorSearchDialog").getString("BackdoorSearchDialog.singles");
-		} else {
-			startStr += ResourceBundle.getBundle("intl/BackdoorSearchDialog")
-					.getString("BackdoorSearchDialog.progress");
-		}
-		startStr += " - ";
-		String label = startStr
-				+ ResourceBundle.getBundle("intl/BackdoorSearchDialog").getString("BackdoorSearchDialog.search_cells1");
-		if (depth == 2) {
-			label = startStr + ResourceBundle.getBundle("intl/BackdoorSearchDialog")
-					.getString("BackdoorSearchDialog.search_cells2");
-		} else if (depth == 3) {
-			label = startStr + ResourceBundle.getBundle("intl/BackdoorSearchDialog")
-					.getString("BackdoorSearchDialog.search_cells3");
-		}
-		label += ")";
-		for (int i = 0; i < end; i++) {
-			if (orgSudoku.getValue(i) != 0) {
-				// cell already set
-				continue;
-			}
-			if (depth == 1) {
-				if (checkSingleOrCandidate(i, -1, -1, null, null, null, stepConfigs)) {
-					found = true;
-					incAnzFound();
-					if (getAnzFound() > MAX_FOUND) {
-						return true;
-					}
-				}
-				triggerUpdateProgressbar(label, max, ++counter);
-			} else {
-				for (int j = i + 1; j < end; j++) {
-					if (orgSudoku.getValue(j) != 0) {
-						// cell already set
-						continue;
-					}
-					if (depth == 2) {
-						if (checkSingleOrCandidate(i, j, -1, null, null, null, stepConfigs)) {
-							found = true;
-							incAnzFound();
-							if (getAnzFound() > MAX_FOUND) {
-								return true;
-							}
-						}
-						triggerUpdateProgressbar(label, max, ++counter);
-					} else {
-						for (int k = j + 1; k < end; k++) {
-							if (orgSudoku.getValue(k) != 0) {
-								// cell already set
-								continue;
-							}
-							if (checkSingleOrCandidate(i, j, k, null, null, null, stepConfigs)) {
-								found = true;
-								incAnzFound();
-								if (getAnzFound() > MAX_FOUND) {
-									return true;
-								}
-							}
-							triggerUpdateProgressbar(label, max, ++counter);
-						}
-					}
-				}
-			}
-		}
-		return found;
-	}
-
-	/**
-	 * Checks if the sudoku can be solved with singles only or with the techniques
-	 * defined in {@link Options#solverStepsProgress}, after the cells
-	 * <code>index1</code>, <code>index2</code> and <code>index3</code> have been
-	 * set. If <code>index2</code> and/or <code>index3</code> are <code>-1</code>,
-	 * they are ignored.<br>
-	 * If <code>candx</code> is not <code>null</code>, a search for a candidate
-	 * combination is done (same rules as above).
-	 * 
-	 * @param index1
-	 * @param index2
-	 * @param index3
-	 * @param cand1
-	 * @param cand2
-	 * @param cand3
-	 * @param stepConfigs
-	 * @return
-	 */
-	private boolean checkSingleOrCandidate(int index1, int index2, int index3, Candidate cand1, Candidate cand2,
-			Candidate cand3, StepConfig[] stepConfigs) throws InterruptedException {
-		if (thread.isInterrupted()) {
-			throw new InterruptedException();
-		}
-		// set the original sudoku
-		sudoku.set(orgSudoku);
-		if (cand1 == null) {
-			// set the cells to the correct values
-//            System.out.println("index1: " + sudoku.getSolution(index1) + "/" + sudoku.getValue(index1));
-			sudoku.setCell(index1, sudoku.getSolution(index1));
-//            System.out.println("sudoku: " + sudoku.getSudoku(ClipboardMode.VALUES_ONLY));
-//            if (index2 >= 0) {
-////                sudoku.setCell(index2, sudoku.getValue(index2));
-//                System.out.println("index2: " + sudoku.getSolution(index2) + "/" + sudoku.getValue(index2));
-//                sudoku.setCell(index2, sudoku.getSolution(index2));
-//            }
-//            if (index3 >= 0) {
-////                sudoku.setCell(index3, sudoku.getValue(index3));
-//                System.out.println("index3: " + sudoku.getSolution(index3) + "/" + sudoku.getValue(index3));
-//                sudoku.setCell(index3, sudoku.getSolution(index3));
-//            }
-		} else {
-			// remove the candidates
-			sudoku.setCandidate(cand1.getIndex(), cand1.getValue(), false);
-			if (cand2 != null) {
-				sudoku.setCandidate(cand2.getIndex(), cand2.getValue(), false);
-			}
-			if (cand3 != null) {
-				sudoku.setCandidate(cand3.getIndex(), cand3.getValue(), false);
-			}
-		}
-		// now try and solve
-		boolean isSolved = false;
-		if (stepConfigs == null) {
-			isSolved = solver.solveSinglesOnly(sudoku);
-		} else {
-			isSolved = solver.solveWithSteps(sudoku, stepConfigs);
-		}
-		if (isSolved) {
-			String cellString = "";
-			if (cand1 == null) {
-				cellString = SolutionStep.getCellPrint(index1, false);
-				if (index2 >= 0) {
-					cellString += ", " + SolutionStep.getCellPrint(index2, false);
-				}
-				if (index3 >= 0) {
-					cellString += ", " + SolutionStep.getCellPrint(index3, false);
-				}
-			} else {
-				cellString = SolutionStep.getCellPrint(cand1.getIndex(), false) + "<>" + cand1.getValue();
-				if (cand2 != null) {
-					cellString += ", " + SolutionStep.getCellPrint(cand2.getIndex(), false) + "<>" + cand2.getValue();
-				}
-				if (cand3 != null) {
-					cellString += ", " + SolutionStep.getCellPrint(cand2.getIndex(), false) + "<>" + cand3.getValue();
-				}
-			}
-			if (stepConfigs == null) {
-				singlesQueue.offer(cellString);
-			} else {
-				progressQueue.offer(cellString);
-			}
-			EventQueue.invokeLater(updateRunnable);
-			return true;
-		}
-		return false;
-	}
-
-	/**
-	 * @return the finished
-	 */
 	private synchronized boolean isFinished() {
 		return finished;
 	}
 
-	/**
-	 * @return the progressLabelString
-	 */
-	private synchronized String getProgressLabelString() {
-		return progressLabelString;
-	}
-
-	/**
-	 * @param progressLabelString the progressLabelString to set
-	 */
-	private synchronized void setProgressLabelString(String progressLabelString) {
-		this.progressLabelString = progressLabelString;
-	}
-
-	/**
-	 * @return the progressBarMax
-	 */
-	private synchronized int getProgressBarMax() {
-		return progressBarMax;
-	}
-
-	/**
-	 * @param progressBarMax the progressBarMax to set
-	 */
-	private synchronized void setProgressBarMax(int progressBarMax) {
-		this.progressBarMax = progressBarMax;
-	}
-
-	/**
-	 * @return the progressBarAct
-	 */
-	private synchronized int getProgressBarAct() {
-		return progressBarAct;
-	}
-
-	/**
-	 * @param progressBarAct the progressBarAct to set
-	 */
-	private synchronized void setProgressBarAct(int progressBarAct) {
-		this.progressBarAct = progressBarAct;
-	}
-
-	/**
-	 * @param finished the finished to set
-	 */
 	private synchronized void setFinished(boolean finished) {
 		this.finished = finished;
 	}
 
-	/**
-	 * @return the anzFound
-	 */
-	private synchronized int getAnzFound() {
-		return anzFound;
+	private synchronized String getProgressLabelString() {
+		return progressLabelString;
 	}
 
-	/**
-	 * @param anzFound the anzFound to set
-	 */
-	private synchronized void setAnzFound(int anzFound) {
-		this.anzFound = anzFound;
+	private synchronized void setProgressLabelString(String progressLabelString) {
+		this.progressLabelString = progressLabelString;
 	}
 
-	/**
-	 * Increment anzFound
-	 */
-	private synchronized void incAnzFound() {
-		anzFound++;
+	private synchronized int getProgressBarMax() {
+		return progressBarMax;
+	}
+
+	private synchronized void setProgressBarMax(int progressBarMax) {
+		this.progressBarMax = progressBarMax;
+	}
+
+	private synchronized int getProgressBarAct() {
+		return progressBarAct;
+	}
+
+	private synchronized void setProgressBarAct(int progressBarAct) {
+		this.progressBarAct = progressBarAct;
 	}
 
 	/**

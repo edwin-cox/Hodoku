@@ -19,14 +19,13 @@
  */
 package sudoku;
 
-import generator.SudokuGenerator;
-import generator.SudokuGeneratorFactory;
 import java.io.ObjectInputStream;
 import java.util.Arrays;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import kernel.SolutionCounter;
 
 /**
  *
@@ -34,8 +33,15 @@ import java.util.logging.Logger;
  */
 public class Sudoku2 implements Cloneable {
 	
-	/** conditional compilation */
+	/** Conditional compilation */
 	private static final boolean DEBUG = false;
+
+	/** Optional injected solution counter used when verifying givens. */
+	private static volatile SolutionCounter defaultSolutionCounter;
+
+	public static void setDefaultSolutionCounter(SolutionCounter counter) {
+		defaultSolutionCounter = counter;
+	}
 
 	/** The number of cells in the sudoku */
 	public static final int LENGTH = 81;
@@ -2449,6 +2455,10 @@ public class Sudoku2 implements Cloneable {
 	 * @param givens
 	 */
 	public void setGivens(String givens) {
+		setGivens(givens, defaultSolutionCounter);
+	}
+
+	public void setGivens(String givens, SolutionCounter solutionCounter) {
 		for (int i = 0; i < givens.length(); i++) {
 			char ch = givens.charAt(i);
 			if (Character.isDigit(ch) && ch != '0') {
@@ -2457,11 +2467,12 @@ public class Sudoku2 implements Cloneable {
 				fixed[i] = false;
 			}
 		}
-		Sudoku2 act = new Sudoku2();
-		act.set(this);
-		SudokuGenerator generator = SudokuGeneratorFactory.getDefaultGeneratorInstance();
-		int anzSol = generator.getNumberOfSolutions(act, 1);
-		setStatusGivens(anzSol);
+		if (solutionCounter != null) {
+			Sudoku2 act = new Sudoku2();
+			act.set(this);
+			int anzSol = solutionCounter.countSolutions(act, 1);
+			setStatusGivens(anzSol);
+		}
 	}
 
 	/**

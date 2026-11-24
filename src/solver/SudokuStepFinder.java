@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
-import sudoku.FindAllStepsProgressDialog;
+import kernel.StepSearchProgressListener;
 import sudoku.SolutionStep;
 import sudoku.SolutionType;
 import sudoku.StepConfig;
@@ -503,11 +503,11 @@ public class SudokuStepFinder {
 	 * @return
 	 */
 	public List<SolutionStep> getAllFishes(Sudoku2 newSudoku, int minSize, int maxSize, int maxFins, int maxEndoFins,
-			FindAllStepsProgressDialog dlg, int forCandidate, int type) {
+			StepSearchProgressListener listener, int forCandidate, int type) {
 		initialize();
 		Sudoku2 oldSudoku = getSudoku();
 		setSudoku(newSudoku);
-		List<SolutionStep> steps = fishSolver.getAllFishes(minSize, maxSize, maxFins, maxEndoFins, dlg, forCandidate,
+		List<SolutionStep> steps = fishSolver.getAllFishes(minSize, maxSize, maxFins, maxEndoFins, listener, forCandidate,
 				type);
 		setSudoku(oldSudoku);
 		return steps;
@@ -521,17 +521,17 @@ public class SudokuStepFinder {
 	 * @param maxSize
 	 * @param maxFins
 	 * @param maxEndoFins
-	 * @param dlg
+	 * @param listener
 	 * @param forCandidate
 	 * @param type
 	 * @return
 	 */
 	public List<SolutionStep> getAllKrakenFishes(Sudoku2 newSudoku, int minSize, int maxSize, int maxFins,
-			int maxEndoFins, FindAllStepsProgressDialog dlg, int forCandidate, int type) {
+			int maxEndoFins, StepSearchProgressListener listener, int forCandidate, int type) {
 		initialize();
 		Sudoku2 oldSudoku = getSudoku();
 		setSudoku(newSudoku);
-		List<SolutionStep> steps = fishSolver.getAllKrakenFishes(minSize, maxSize, maxFins, maxEndoFins, dlg,
+		List<SolutionStep> steps = fishSolver.getAllKrakenFishes(minSize, maxSize, maxFins, maxEndoFins, listener,
 				forCandidate, type);
 		setSudoku(oldSudoku);
 		return steps;

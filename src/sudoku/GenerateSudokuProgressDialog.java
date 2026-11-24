@@ -29,6 +29,7 @@ import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.JComponent;
 import javax.swing.KeyStroke;
+import kernel.GenerationProgressListener;
 
 /**
  * Creates a new sudoku while displaying a progress dialog. The creation is
@@ -36,7 +37,7 @@ import javax.swing.KeyStroke;
  * 
  * @author hobiwan
  */
-public class GenerateSudokuProgressDialog extends javax.swing.JDialog implements Runnable {
+public class GenerateSudokuProgressDialog extends javax.swing.JDialog implements Runnable, GenerationProgressListener {
 	private static final long serialVersionUID = 1L;
 	/** The newly generated sudoku. */
 	private Sudoku2 sudoku;
@@ -175,6 +176,16 @@ public class GenerateSudokuProgressDialog extends javax.swing.JDialog implements
 			@Override
 			public void run() {
 				setVisible(false);
+			}
+		});
+	}
+
+	@Override
+	public void onGenerationAttempt(final int attemptCount) {
+		EventQueue.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				progressLabel.setText(Integer.toString(attemptCount));
 			}
 		});
 	}

@@ -24,18 +24,21 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.ResourceBundle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.JComponent;
 import javax.swing.KeyStroke;
+import kernel.StepSearchProgressListener;
+import kernel.StepSearchStage;
 
 /**
  *
  * @author hobiwan
  */
-public class FindAllStepsProgressDialog extends javax.swing.JDialog {
+public class FindAllStepsProgressDialog extends javax.swing.JDialog implements StepSearchProgressListener {
 	private static final int MAX_STEPS = 27;
 	private static final long serialVersionUID = 1L;
 
@@ -168,6 +171,72 @@ public class FindAllStepsProgressDialog extends javax.swing.JDialog {
 	private void formWindowOpened(java.awt.event.WindowEvent evt) {// GEN-FIRST:event_formWindowOpened
 		thread.start();
 	}// GEN-LAST:event_formWindowOpened
+
+	@Override
+	public void onStageStarted(StepSearchStage stage, int candidate, int stepIndex) {
+		ResourceBundle bundle = ResourceBundle.getBundle("intl/FindAllStepsProgressDialog");
+		String label;
+		switch (stage) {
+		case SIMPLE_STEPS:
+			label = bundle.getString("FindAllStepsProgressDialog.simple_solutions");
+			break;
+		case FISH:
+			label = bundle.getString("FindAllStepsProgressDialog.fish") + " " + candidate;
+			break;
+		case KRAKEN_FISH:
+			label = bundle.getString("FindAllStepsProgressDialog.kraken_fish") + " " + candidate;
+			break;
+		case UNIQUENESS_WINGS_COLORING:
+			label = bundle.getString("FindAllStepsProgressDialog.uniqueness");
+			break;
+		case CHAINS:
+			label = bundle.getString("FindAllStepsProgressDialog.chains");
+			break;
+		case NICE_LOOPS:
+			label = bundle.getString("FindAllStepsProgressDialog.nice_loops");
+			break;
+		case GROUPED_NICE_LOOPS:
+			label = bundle.getString("FindAllStepsProgressDialog.grouped_nice_loops");
+			break;
+		case TEMPLATES:
+			label = bundle.getString("FindAllStepsProgressDialog.templates");
+			break;
+		case ALS:
+			label = bundle.getString("FindAllStepsProgressDialog.als");
+			break;
+		case FORCING_CHAINS:
+			label = bundle.getString("FindAllStepsProgressDialog.forcing_Chains");
+			break;
+		case FORCING_NETS:
+			label = bundle.getString("FindAllStepsProgressDialog.forcing_Nets");
+			break;
+		case PROGRESS_SCORE:
+		default:
+			label = bundle.getString("FindAllStepsProgressDialog.progress_Score");
+			break;
+		}
+		updateProgress(label, stepIndex);
+	}
+
+	@Override
+	public void resetSubProgress(int maxValue) {
+		resetFishProgressBar(maxValue);
+	}
+
+	@Override
+	public void updateSubProgress(int currentValue) {
+		updateFishProgressBar(currentValue);
+	}
+
+	@Override
+	public void onSearchCompleted() {
+		EventQueue.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				setVisible(false);
+			}
+		});
+	}
 
 	public void updateProgress(final String label, final int step) {
 		EventQueue.invokeLater(new Runnable() {

@@ -20,13 +20,16 @@
 package sudoku;
 
 import java.awt.EventQueue;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import kernel.SolverProgressListener;
 import solver.SudokuSolver;
 
 /**
  *
  * @author hobiwan
  */
-public class SolverProgressDialog extends javax.swing.JDialog implements Runnable {
+public class SolverProgressDialog extends javax.swing.JDialog implements Runnable, SolverProgressListener {
 	private static final long serialVersionUID = 1L;
 
 	private SudokuSolver solver = null;
@@ -119,12 +122,43 @@ public class SolverProgressDialog extends javax.swing.JDialog implements Runnabl
 		});
 	}
 
+	/**
+	 * Runs {@code solver.solve(...)} and shows a modal {@link SolverProgressDialog}
+	 * if solving takes longer than 2 seconds.
+	 */
+	public static boolean solve(SudokuSolver solver) {
+		SolverProgressDialog dlg = new SolverProgressDialog(null, true, solver);
+		Thread thread = dlg.getThread();
+		try {
+			thread.join(2000);
+		} catch (InterruptedException ex) {
+			Logger.getLogger(SolverProgressDialog.class.getName()).log(Level.INFO, "Solver thread was interrupted", ex);
+		}
+		if (thread.isAlive()) {
+			dlg.setVisible(true);
+		}
+		if (thread.isAlive()) {
+			try {
+				thread.join();
+			} catch (InterruptedException ex) {
+				Logger.getLogger(SolverProgressDialog.class.getName()).log(Level.INFO, "Solver thread was interrupted",
+						ex);
+			}
+		}
+		if (dlg.isVisible()) {
+			dlg.setVisible(false);
+		}
+		return dlg.isSolved();
+	}
+
+	@Override
 	public void initializeProgressState(final int unsolvedCandidates) {
 		int dummy = candsProgressBar.getMaximum() - unsolvedCandidates;
 		candsProgressBar.setMinimum(dummy);
 		candsProgressBar.setValue(dummy);
 	}
 
+	@Override
 	public void setProgressState(final int unsolvedCells, final int unsolvedCandidates) {
 		EventQueue.invokeLater(new Runnable() {
 			@Override

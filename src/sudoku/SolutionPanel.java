@@ -559,7 +559,7 @@ public class SolutionPanel extends javax.swing.JPanel {
 			actSteps.remove(actSteps.size() - 1);
 			Sudoku2 actSudoku = mainFrame.getSudokuPanel().getSudoku().clone();
 			solver.setSudoku(actSudoku, actSteps);
-			solver.solve(true);
+			SolverProgressDialog.solve(solver);
 			setActSteps(solver.getSteps());
 			setStepsInList();
 			// actList.setSelectedIndex(actSelectedIndex);

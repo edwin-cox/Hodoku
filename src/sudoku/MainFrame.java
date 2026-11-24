@@ -2367,15 +2367,8 @@ public class MainFrame extends javax.swing.JFrame implements FlavorListener {
 			
 			if (Options.getInstance().getGameMode() == GameMode.LEARNING) {
 				// solve the sudoku up until the first trainingStep
-				Sudoku2 trainingSudoku = sudokuPanel.getSudoku();
-				List<SolutionStep> steps = sudokuPanel.getSolver().getSteps();
-				for (SolutionStep step : steps) {
-					if (step.getType().getStepConfig().isEnabledTraining()) {
-						break;
-					} else {
-						sudokuPanel.getSolver().doStep(trainingSudoku, step);
-					}
-				}
+				kernel.SudokuGame.prepareLearningMode(sudokuPanel.getSudoku(),
+						sudokuPanel.getSolver().getSteps(), sudokuPanel.getSolver());
 			}
 			
 			clearSavePoints();

@@ -24,16 +24,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import kernel.StepSearchProgressListener;
+import kernel.SudokuCoreUtil;
 import sudoku.Candidate;
 import sudoku.Chain;
-import sudoku.FindAllStepsProgressDialog;
 import sudoku.Options;
 import sudoku.SolutionStep;
 import sudoku.SolutionType;
 import sudoku.Sudoku2;
 import sudoku.SudokuSet;
 import sudoku.SudokuSetBase;
-import sudoku.SudokuUtil;
 
 /**
  * Es gelten die Definitionen aus dem Ultimate Fish Guide:
@@ -303,8 +303,8 @@ public class FishSolver extends AbstractSolver {
 	private SudokuSet krakenFinSet = new SudokuSet();
 	/** A set for cannibalistic eliminations in Kraken Fish */
 	private SudokuSet krakenCannibalisticSet = new SudokuSet();
-	/** A progress dialog for "find all steps" */
-	private FindAllStepsProgressDialog dlg = null;
+	/** A progress listener for "find all steps" */
+	private StepSearchProgressListener progressListener = null;
 	/** A global {@link SolutionStep}, speeds up search */
 	private SolutionStep globalStep = new SolutionStep(SolutionType.HIDDEN_SINGLE);
 	/** A {@link TablingSolver} for Kraken Fish search */
@@ -575,8 +575,8 @@ public class FishSolver extends AbstractSolver {
 	 * @return
 	 */
 	protected List<SolutionStep> getAllFishes(int minSize, int maxSize, int maxFins, int maxEndoFins,
-			FindAllStepsProgressDialog dlg, int forCandidate, int type) {
-		this.dlg = dlg;
+			StepSearchProgressListener listener, int forCandidate, int type) {
+		this.progressListener = listener;
 		sudoku = finder.getSudoku();
 		int oldMaxFins = Options.getInstance().getMaxFins();
 		int oldEndoFins = Options.getInstance().getMaxEndoFins();
@@ -618,7 +618,7 @@ public class FishSolver extends AbstractSolver {
 		steps = oldSteps;
 		Options.getInstance().setMaxFins(oldMaxFins);
 		Options.getInstance().setMaxEndoFins(oldEndoFins);
-		this.dlg = null;
+		this.progressListener = null;
 		return result;
 	}
 
@@ -690,12 +690,12 @@ public class FishSolver extends AbstractSolver {
 	 * @return
 	 */
 	protected List<SolutionStep> getAllKrakenFishes(int minSize, int maxSize, int maxFins, int maxEndoFins,
-			FindAllStepsProgressDialog dlg, int forCandidate, int type) {
+			StepSearchProgressListener listener, int forCandidate, int type) {
 		tablingSolver = finder.getTablingSolver();
 		synchronized (tablingSolver) {
 			// System.out.println("getAllKrakenFishes: " + minSize + "/" + maxSize + "/" +
 			// forCandidate);
-			this.dlg = dlg;
+			this.progressListener = listener;
 			sudoku = finder.getSudoku();
 			boolean oldCheckTemplates = Options.getInstance().isCheckTemplates();
 			Options.getInstance().setCheckTemplates(false);
@@ -742,7 +742,7 @@ public class FishSolver extends AbstractSolver {
 			Options.getInstance().setMaxFins(oldMaxFins);
 			Options.getInstance().setMaxEndoFins(oldEndoFins);
 			kraken = false;
-			this.dlg = null;
+			this.progressListener = null;
 			// System.out.println(" " + result.size() + " steps!");
 			return result;
 		}
@@ -933,8 +933,8 @@ public class FishSolver extends AbstractSolver {
 			// make all necessary calculations
 			baseGesamt++; // counter for progress bar
 			baseShowGesamt++; // counter for progress bar
-			if (dlg != null && baseShowGesamt % 100 == 0) {
-				dlg.updateFishProgressBar(baseShowGesamt);
+			if (progressListener != null && baseShowGesamt % 100 == 0) {
+				progressListener.updateSubProgress(baseShowGesamt);
 			}
 			// if the new unit has common candidates with the current base set, those
 			// candidates
@@ -950,9 +950,9 @@ public class FishSolver extends AbstractSolver {
 								+ getSize(aktEndoFinSetM1, aktEndoFinSetM2)) > Options.getInstance().getMaxEndoFins()) {
 					// every invalid combination eliminates a lot of possibilities:
 					// (all non-zero baseUnits greater than i) over (maxSize - aktSize)
-					if (dlg != null) {
+					if (progressListener != null) {
 						for (int j = 1; j <= maxSize - baseLevel; j++) {
-							baseShowGesamt += SudokuUtil.combinations(numberOfBaseUnits - aktBaseIndex, j);
+							baseShowGesamt += SudokuCoreUtil.combinations(numberOfBaseUnits - aktBaseIndex, j);
 						}
 					}
 					continue;
@@ -1721,11 +1721,11 @@ public class FishSolver extends AbstractSolver {
 		maxBaseCombinations = 0;
 		// we have only maxSize combinations (the smaller fishes are automatically
 		// included
-		if (dlg != null) {
+		if (progressListener != null) {
 			for (int i = 1; i <= maxSize; i++) {
-				maxBaseCombinations += SudokuUtil.combinations(numberOfBaseUnits, i);
+				maxBaseCombinations += SudokuCoreUtil.combinations(numberOfBaseUnits, i);
 			}
-			dlg.resetFishProgressBar(maxBaseCombinations);
+			progressListener.resetSubProgress(maxBaseCombinations);
 		}
 //        System.out.println("possibleBaseUnits: " + Arrays.toString(baseUnits) + ", " + numberOfBaseUnits);
 //        System.out.println("allPossibleCoverUnits: " + Arrays.toString(allCoverUnits) + ", " + numberOfAllCoverUnits);

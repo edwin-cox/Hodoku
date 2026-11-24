@@ -72,6 +72,7 @@ import javax.imageio.stream.FileImageOutputStream;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import kernel.SudokuGame;
 import org.w3c.dom.Node;
 import solver.SudokuSolver;
 import solver.SudokuSolverFactory;
@@ -3521,7 +3522,7 @@ public class SudokuPanel extends javax.swing.JPanel implements Printable {
 						tmpSudoku.setStatus(SudokuStatus.VALID);
 						tmpSudoku.setStatusGivens(sudoku.getStatusGivens());
 						tmpSudoku.setSolution(sudoku.getSolution());
-						getSolver().solve(true);
+						SolverProgressDialog.solve(getSolver());
 					}
 
 					sudoku.setLevel(getSolver().getSudoku().getLevel());
@@ -3556,43 +3557,8 @@ public class SudokuPanel extends javax.swing.JPanel implements Printable {
 	 */
 	public void solveUpTo() {
 		
-		SolutionStep actStep = null;
-		boolean changed = false;
 		undoStack.push(sudoku.clone());
-		GameMode gm = Options.getInstance().getGameMode();
-		
-		while ((actStep = solver.getHint(sudoku, false)) != null) {
-			
-			if (actStep.isGiveUp()) {
-				// should display a message saying it failed, but I don;t know where the log UI is located.
-				break;
-			} else if (gm == GameMode.PLAYING) {
-				if (!actStep.getType().getStepConfig().isEnabledProgress()) {
-					// solving stops
-					break;
-				}
-			} else {
-				if (actStep.getType().getStepConfig().isEnabledTraining()) {
-					// solving stops
-					break;
-				}
-			}
-			
-			// still here? do the step
-			getSolver().doStep(sudoku, actStep);
-			changed = true;
-		}
-			
-		/*
-		if (actStep.isGiveUp()) {
-			JOptionPane.showMessageDialog(
-				this,
-				java.util.ResourceBundle.getBundle("intl/MainFrame").getString("MainFrame.dont_know"),
-				java.util.ResourceBundle.getBundle("intl/MainFrame").getString("MainFrame.error"),
-				JOptionPane.ERROR_MESSAGE
-			);
-			break;
-		}*/
+		boolean changed = SudokuGame.solveUpTo(sudoku, getSolver(), Options.getInstance().getGameMode());
 		
 		if (changed) {
 			redoStack.clear();
@@ -4183,7 +4149,7 @@ public class SudokuPanel extends javax.swing.JPanel implements Printable {
 	 */
 	public void setGivens(String givens) {
 		undoStack.push(sudoku.clone());
-		sudoku.setGivens(givens);
+		sudoku.setGivens(givens, (s, max) -> generator.getNumberOfSolutions(s, max));
 		updateCellZoomPanel();
 		repaint();
 		mainFrame.check();

@@ -22,6 +22,7 @@ package generator;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import sudoku.Sudoku2;
 
 /**
  * HoDoKu uses one instance of class {@link SudokuGenerator} from within the
@@ -86,6 +87,8 @@ public class SudokuGeneratorFactory {
 	/** Start the thread */
 	static {
 		thread.start();
+		Sudoku2.setDefaultSolutionCounter(
+				(sudoku, maxSolutions) -> defaultGenerator.getNumberOfSolutions(sudoku, maxSolutions));
 	}
 
 	/**
